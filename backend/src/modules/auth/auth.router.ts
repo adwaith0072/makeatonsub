@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../database/client.ts';
 import { authPlugin } from '../../middleware/auth.ts';
+import { securityPlugin } from '../../middleware/security.ts';
 
 // Password requirement: more than 8 characters (so >= 9), with at least one uppercase, one lowercase, and one special character
 export function validatePassword(password: string): string | null {
@@ -20,12 +21,13 @@ export function validatePassword(password: string): string | null {
 }
 
 export const authRouter = new Elysia({ prefix: '/auth' })
+  .use(securityPlugin)
   .use(authPlugin)
 
   // POST /auth/signup
   .post(
     '/signup',
-    async ({ body, set, jwt }) => {
+    async ({ body, set, jwt, deviceFingerprint }) => {
       const { email, password, name, companyName, phone, billingAddress } = body;
       const normalizedEmail = email.trim().toLowerCase();
 
@@ -82,13 +84,20 @@ export const authRouter = new Elysia({ prefix: '/auth' })
         },
       });
 
-      const token = await jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role });
+      // Bind device fingerprint to the JWT token
+      const token = await jwt.sign({
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        fp: deviceFingerprint,
+      });
 
       set.status = 201;
       return {
         message: 'Account created successfully.',
         user: newUser,
         token,
+        deviceFingerprint,
       };
     },
     {
@@ -99,6 +108,10 @@ export const authRouter = new Elysia({ prefix: '/auth' })
         companyName: t.Optional(t.String()),
         phone: t.Optional(t.String()),
         billingAddress: t.Optional(t.String()),
+        // Honeypot fields for bot traps
+        _hp_trap: t.Optional(t.String()),
+        _bot_check: t.Optional(t.String()),
+        website_url_hp: t.Optional(t.String()),
       }),
     }
   )
@@ -106,7 +119,7 @@ export const authRouter = new Elysia({ prefix: '/auth' })
   // POST /auth/login
   .post(
     '/login',
-    async ({ body, set, jwt }) => {
+    async ({ body, set, jwt, deviceFingerprint }) => {
       const { email, password } = body;
       const normalizedEmail = email.trim().toLowerCase();
 
@@ -135,11 +148,18 @@ export const authRouter = new Elysia({ prefix: '/auth' })
         };
       }
 
-      const token = await jwt.sign({ id: user.id, email: user.email, role: user.role });
+      // Bind device fingerprint to the JWT token
+      const token = await jwt.sign({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        fp: deviceFingerprint,
+      });
 
       return {
         message: 'Login successful.',
         token,
+        deviceFingerprint,
         user: {
           id: user.id,
           name: user.name,
@@ -153,12 +173,15 @@ export const authRouter = new Elysia({ prefix: '/auth' })
       body: t.Object({
         email: t.String({ format: 'email' }),
         password: t.String(),
+        // Honeypot fields for bot traps
+        _hp_trap: t.Optional(t.String()),
+        _bot_check: t.Optional(t.String()),
       }),
     }
   )
 
   // GET /auth/me
-  .get('/me', async ({ user, set }) => {
+  .get('/me', async ({ user, set, deviceFingerprint }) => {
     if (!user) {
       set.status = 401;
       return { error: { code: 'UNAUTHORIZED', message: 'Not authenticated.' } };
@@ -179,7 +202,7 @@ export const authRouter = new Elysia({ prefix: '/auth' })
       },
     });
 
-    return { user: dbUser };
+    return { user: dbUser, currentDeviceFingerprint: deviceFingerprint };
   })
 
   // POST /auth/logout
@@ -218,6 +241,7 @@ export const authRouter = new Elysia({ prefix: '/auth' })
     {
       body: t.Object({
         email: t.String({ format: 'email' }),
+        _hp_trap: t.Optional(t.String()),
       }),
     }
   )

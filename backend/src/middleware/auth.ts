@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { prisma } from '../database/client.ts';
+import { extractClientInfo, generateDeviceFingerprint } from '../security/device-fingerprint.ts';
 
 export const JWT_NAME = 'jwt';
 export const JWT_SECRET = process.env.JWT_SECRET || 'brightloop-super-secret-jwt-key-2026';
@@ -51,8 +52,21 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
     }
 
     try {
-      const payload = (await jwt.verify(token)) as { id?: string; email?: string } | null;
+      const payload = (await jwt.verify(token)) as { id?: string; email?: string; fp?: string } | null;
       if (!payload || !payload.id) {
+        return { user: null };
+      }
+
+      // Device Fingerprint Session Verification:
+      // If token is bound to a fingerprint, check that request came from matching device
+      const clientInfo = extractClientInfo(request);
+      const currentFp = generateDeviceFingerprint(clientInfo);
+
+      if (payload.fp && payload.fp !== currentFp) {
+        // Warning: Potential token theft / session hijacking
+        console.warn(
+          `[Security Warning] Session fingerprint mismatch for user ${payload.id}. Expected: ${payload.fp}, Current: ${currentFp}`
+        );
         return { user: null };
       }
 

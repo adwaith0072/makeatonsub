@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
+import { securityPlugin } from './middleware/security.ts';
 import { authPlugin } from './middleware/auth.ts';
 import { errorPlugin } from './middleware/error.ts';
 import { authRouter } from './modules/auth/auth.router.ts';
@@ -20,10 +21,14 @@ export function createElysiaApp() {
         origin: true,
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        exposeHeaders: ['X-Device-Fingerprint', 'Retry-After'],
       })
     )
 
-    // 2. Swagger OpenAPI Documentation
+    // 2. Device Fingerprinting & Anti-Bot Defense Layer (First line of security)
+    .use(securityPlugin)
+
+    // 3. Swagger OpenAPI Documentation
     .use(
       swagger({
         documentation: {
@@ -31,7 +36,7 @@ export function createElysiaApp() {
             title: 'Brightloop Subscription Management API',
             version: '1.0.0',
             description:
-              'Modular Elysia API for Brightloop Software Subscription & Recurring Billing Management',
+              'Modular Elysia API with Device Fingerprinting & Anti-Bot Security Layer',
           },
           tags: [
             { name: 'Auth', description: 'Authentication and password management' },
@@ -47,13 +52,13 @@ export function createElysiaApp() {
       })
     )
 
-    // 3. Error Handling
+    // 4. Error Handling
     .use(errorPlugin)
 
-    // 4. Global Authentication Default (protects all non-whitelisted endpoints)
+    // 5. Global Authentication Default (protects all non-whitelisted endpoints)
     .use(authPlugin)
 
-    // 5. Public Health Check
+    // 6. Public Health Check
     .get('/health', () => ({
       status: 'ok',
       service: 'Brightloop Subscription Management Backend',
@@ -62,7 +67,7 @@ export function createElysiaApp() {
       pid: process.pid,
     }))
 
-    // 6. Mount Modular Path Routers
+    // 7. Mount Modular Path Routers
     .use(authRouter)
     .use(usersRouter)
     .use(catalogRouter)
