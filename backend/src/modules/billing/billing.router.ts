@@ -203,6 +203,38 @@ export const billingRouter = new Elysia()
     }
   )
 
+  // PATCH /taxes/:id (ADMIN ONLY)
+  .patch(
+    '/taxes/:id',
+    async ({ user, params, body, set }) => {
+      const guard = requireAdmin(user as AuthUser);
+      if (guard) {
+        set.status = guard.status;
+        return guard.response;
+      }
+
+      const updated = await prisma.tax.update({
+        where: { id: params.id },
+        data: {
+          name: body.name,
+          rate: body.rate,
+          isActive: body.isActive,
+        },
+      });
+
+      return { message: 'Tax rule updated.', tax: updated };
+    },
+    {
+      body: t.Partial(
+        t.Object({
+          name: t.String({ minLength: 1 }),
+          rate: t.Number({ minimum: 0, maximum: 100 }),
+          isActive: t.Boolean(),
+        })
+      ),
+    }
+  )
+
   // ==================== DISCOUNTS ====================
 
   // GET /discounts
@@ -277,6 +309,48 @@ export const billingRouter = new Elysia()
         endDate: t.Optional(t.String()),
         usageLimit: t.Optional(t.Number({ minimum: 1 })),
       }),
+    }
+  )
+
+  // PATCH /discounts/:id (ADMIN ONLY)
+  .patch(
+    '/discounts/:id',
+    async ({ user, params, body, set }) => {
+      const guard = requireAdmin(user as AuthUser);
+      if (guard) {
+        set.status = guard.status;
+        return guard.response;
+      }
+
+      const updated = await prisma.discount.update({
+        where: { id: params.id },
+        data: {
+          name: body.name,
+          code: body.code ? body.code.toUpperCase() : undefined,
+          value: body.value,
+          minPurchaseAmount: body.minPurchaseAmount,
+          minQuantity: body.minQuantity,
+          endDate: body.endDate ? new Date(body.endDate) : undefined,
+          usageLimit: body.usageLimit,
+          isActive: body.isActive,
+        },
+      });
+
+      return { message: 'Discount rule updated.', discount: updated };
+    },
+    {
+      body: t.Partial(
+        t.Object({
+          name: t.String({ minLength: 1 }),
+          code: t.String(),
+          value: t.Number({ minimum: 0 }),
+          minPurchaseAmount: t.Number({ minimum: 0 }),
+          minQuantity: t.Number({ minimum: 1 }),
+          endDate: t.String(),
+          usageLimit: t.Number({ minimum: 1 }),
+          isActive: t.Boolean(),
+        })
+      ),
     }
   )
 

@@ -22,6 +22,7 @@ export const PUBLIC_PATHS = [
   '/auth/login',
   '/auth/forgot-password',
   '/auth/reset-password',
+  '/auth/bootstrap-admin',
   '/api/payment/create-order',
   '/api/payment/verify',
 ];
