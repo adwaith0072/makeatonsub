@@ -21,6 +21,8 @@ export const PUBLIC_PATHS = [
   '/auth/login',
   '/auth/forgot-password',
   '/auth/reset-password',
+  '/api/payment/create-order',
+  '/api/payment/verify',
 ];
 
 export function isPublicRoute(path: string): boolean {

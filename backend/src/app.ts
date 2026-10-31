@@ -8,7 +8,7 @@ import { usersRouter } from './modules/users/users.router.ts';
 import { catalogRouter } from './modules/catalog/catalog.router.ts';
 import { subscriptionsRouter } from './modules/subscriptions/subscriptions.router.ts';
 import { billingRouter } from './modules/billing/billing.router.ts';
-import { paymentsRouter } from './modules/payments/payments.router.ts';
+import { paymentsRouter, razorpayPaymentRouter } from './modules/payments/payments.router.ts';
 import { reportsRouter } from './modules/reports/reports.router.ts';
 import { portalRouter } from './modules/portal/portal.router.ts';
 
@@ -69,6 +69,7 @@ export function createElysiaApp() {
     .use(subscriptionsRouter)
     .use(billingRouter)
     .use(paymentsRouter)
+    .use(razorpayPaymentRouter)
     .use(reportsRouter)
     .use(portalRouter);
 
