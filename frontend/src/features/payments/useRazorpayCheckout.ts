@@ -51,15 +51,6 @@ export interface VerifyOrderResponse {
   invoice?: unknown;
 }
 
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => {
-      open: () => void;
-      on: (event: string, callback: (response: any) => void) => void;
-    };
-  }
-}
-
 const RAZORPAY_SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
 
 export function loadRazorpayScript(): Promise<boolean> {
