@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../database/client.ts';
 import { authPlugin, ensureCustomerAccess, requireStaffOrAdmin, type AuthUser } from '../../middleware/auth.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 
 // Allowed state transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -191,6 +192,24 @@ export const subscriptionsRouter = new Elysia({ prefix: '/subscriptions' })
       });
 
       set.status = 201;
+
+      // Dispatch staff notification asynchronously
+      EmailService.sendStaffNotification({
+        title: 'New Subscription Created',
+        badge: 'SUBSCRIPTION',
+        badgeColor: 'blue',
+        message: `Subscription ${subscription.number} created for customer ${subscription.customer.name} under plan ${subscription.plan.name}.`,
+        details: [
+          { label: 'Subscription #', value: subscription.number },
+          { label: 'Customer', value: subscription.customer.name },
+          { label: 'Plan', value: subscription.plan.name },
+          { label: 'Billing Period', value: subscription.plan.billingPeriod },
+          { label: 'Payment Terms', value: subscription.paymentTerms },
+        ],
+      }).catch((err) =>
+        console.error('[EmailService] Failed to send staff subscription alert:', err)
+      );
+
       return {
         message: 'Subscription created successfully.',
         subscription,

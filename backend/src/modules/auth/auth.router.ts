@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../database/client.ts';
 import { authPlugin } from '../../middleware/auth.ts';
 import { securityPlugin } from '../../middleware/security.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 
 // Password requirement: more than 8 characters (so >= 9), with at least one uppercase, one lowercase, and one special character
 export function validatePassword(password: string): string | null {
@@ -168,6 +169,25 @@ export const authRouter = new Elysia({ prefix: '/auth' })
         fp: deviceFingerprint,
       });
 
+      // Dispatch welcome email and internal staff notification asynchronously
+      EmailService.sendWelcomeEmail(newUser).catch((err) =>
+        console.error('[EmailService] Failed to send welcome email:', err)
+      );
+      EmailService.sendStaffNotification({
+        title: 'New Customer Registered',
+        badge: 'NEW SIGNUP',
+        badgeColor: 'blue',
+        message: `${newUser.name} registered a new account on Brightloop Software.`,
+        details: [
+          { label: 'Customer Name', value: newUser.name },
+          { label: 'Email', value: newUser.email },
+          { label: 'Company', value: newUser.companyName || 'Individual' },
+          { label: 'Phone', value: newUser.phone || '-' },
+        ],
+      }).catch((err) =>
+        console.error('[EmailService] Failed to send staff signup alert:', err)
+      );
+
       set.status = 201;
       return {
         message: 'Account created successfully.',
@@ -308,6 +328,11 @@ export const authRouter = new Elysia({ prefix: '/auth' })
             resetTokenExpiry,
           },
         });
+
+        // Dispatch password reset email with token link
+        EmailService.sendPasswordResetEmail(user, resetToken).catch((err) =>
+          console.error('[EmailService] Failed to send password reset email:', err)
+        );
       }
 
       return {

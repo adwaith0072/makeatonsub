@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../database/client.ts';
 import { authPlugin, requireStaffOrAdmin, type AuthUser } from '../../middleware/auth.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -164,6 +165,7 @@ async function handleVerifyRazorpayPayment({
         where: UUID_REGEX.test(targetLookup)
           ? { OR: [{ id: targetLookup }, { number: targetLookup }] }
           : { number: targetLookup },
+        include: { customer: true },
       });
 
       if (invoice && invoice.status !== 'CANCELLED') {
@@ -221,6 +223,33 @@ async function handleVerifyRazorpayPayment({
 
           return { payment, invoice: updatedInvoice };
         });
+
+        // Dispatch payment receipt email and staff alert
+        if (updatedRecord) {
+          EmailService.sendPaymentReceiptEmail(
+            updatedRecord.payment,
+            updatedRecord.invoice,
+            invoice.customer
+          ).catch((err) =>
+            console.error('[EmailService] Failed to send payment receipt:', err)
+          );
+
+          EmailService.sendStaffNotification({
+            title: 'Online Payment Verified',
+            badge: 'PAYMENT',
+            badgeColor: 'green',
+            message: `Online payment of ₹${updatedRecord.payment.amount} verified for invoice ${updatedRecord.invoice.number}.`,
+            details: [
+              { label: 'Invoice', value: updatedRecord.invoice.number },
+              { label: 'Customer', value: invoice.customerName || invoice.customer?.name || 'Customer' },
+              { label: 'Amount', value: `₹${updatedRecord.payment.amount}` },
+              { label: 'Payment ID', value: razorpay_payment_id },
+              { label: 'Status', value: updatedRecord.invoice.status },
+            ],
+          }).catch((err) =>
+            console.error('[EmailService] Failed to send staff payment alert:', err)
+          );
+        }
       }
     } catch (dbErr) {
       console.error('[Razorpay Verify] Database update error:', dbErr);
@@ -371,7 +400,7 @@ export const paymentsRouter = new Elysia({ prefix: '/payments' })
 
       const invoice = await prisma.invoice.findUnique({
         where: { id: invoiceId },
-        include: { payments: true },
+        include: { payments: true, customer: true },
       });
 
       if (!invoice) {
@@ -415,6 +444,32 @@ export const paymentsRouter = new Elysia({ prefix: '/payments' })
 
         return { payment, invoice: updatedInvoice };
       });
+
+      // Dispatch payment receipt email & internal staff notification asynchronously
+      EmailService.sendPaymentReceiptEmail(
+        result.payment,
+        result.invoice,
+        invoice.customer
+      ).catch((err) =>
+        console.error('[EmailService] Failed to send payment receipt:', err)
+      );
+
+      EmailService.sendStaffNotification({
+        title: 'Payment Recorded',
+        badge: 'PAYMENT',
+        badgeColor: 'green',
+        message: `Payment of ₹${result.payment.amount} recorded for invoice ${result.invoice.number} by ${(user as AuthUser).name}.`,
+        details: [
+          { label: 'Invoice', value: result.invoice.number },
+          { label: 'Customer', value: invoice.customerName || invoice.customer?.name || 'Customer' },
+          { label: 'Amount', value: `₹${result.payment.amount}` },
+          { label: 'Method', value: String(method) },
+          { label: 'Reference', value: reference || 'N/A' },
+          { label: 'Invoice Status', value: result.invoice.status },
+        ],
+      }).catch((err) =>
+        console.error('[EmailService] Failed to send staff payment alert:', err)
+      );
 
       set.status = 201;
       return {

@@ -1,4 +1,5 @@
 import { prisma } from '../../database/client.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 
 export interface BillingRunResult {
   processed: number;
@@ -198,10 +199,12 @@ export async function runBillingEngine(runDate = new Date()): Promise<BillingRun
 
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+      let createdInvoice: any = null;
+
       // Execute in atomic transaction
       await prisma.$transaction(async (tx) => {
         // 1. Create invoice
-        await tx.invoice.create({
+        createdInvoice = await tx.invoice.create({
           data: {
             number: invoiceNumber,
             subscriptionId: sub.id,
@@ -244,6 +247,17 @@ export async function runBillingEngine(runDate = new Date()): Promise<BillingRun
       });
 
       result.invoicesCreated++;
+
+      // Dispatch invoice email to customer asynchronously
+      if (createdInvoice) {
+        EmailService.sendInvoiceEmail(
+          createdInvoice,
+          invoiceLinesData,
+          sub.customer
+        ).catch((err) =>
+          console.error('[EmailService] Failed to send invoice email:', err)
+        );
+      }
     } catch (err: any) {
       result.errors.push({
         subscriptionId: sub.id,

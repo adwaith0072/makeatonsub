@@ -1,0 +1,368 @@
+import * as React from 'react';
+import {
+  Html,
+  Head,
+  Preview,
+  Body,
+  Container,
+  Section,
+  Heading,
+  Text,
+  Button,
+  Hr,
+  Row,
+  Column,
+} from '@react-email/components';
+
+export interface PaymentReceiptEmailProps {
+  customerName: string;
+  invoiceNumber: string;
+  paymentReference: string;
+  paymentDate: string;
+  paymentMethod: string;
+  amountPaid: number;
+  invoiceGrandTotal: number;
+  remainingBalance: number;
+  portalUrl: string;
+}
+
+export function PaymentReceiptEmail({
+  customerName = 'Valued Customer',
+  invoiceNumber = 'INV-001234',
+  paymentReference = 'PAY-REF-98765',
+  paymentDate = 'Oct 31, 2026',
+  paymentMethod = 'UPI',
+  amountPaid = 11210,
+  invoiceGrandTotal = 11210,
+  remainingBalance = 0,
+  portalUrl = 'http://localhost:3000/portal/invoices',
+}: PaymentReceiptEmailProps) {
+  const isFullySettled = remainingBalance <= 0;
+
+  return (
+    <Html>
+      <Head />
+      <Preview>Payment Receipt: {formatCurrency(amountPaid)} received for {invoiceNumber}</Preview>
+      <Body style={main}>
+        <Container style={container}>
+          {/* Header Banner */}
+          <Section style={header}>
+            <div style={brandBadge}>B</div>
+            <Heading style={headerTitle}>Brightloop Software</Heading>
+          </Section>
+
+          <Section style={contentSection}>
+            <div style={successIconContainer}>
+              <span style={checkmarkIcon}>✓</span>
+            </div>
+
+            <Heading as="h2" style={receiptTitle}>
+              Payment Confirmed
+            </Heading>
+
+            <Text style={subTitle}>
+              Thank you, <strong>{customerName}</strong>. We have received and applied your payment.
+            </Text>
+
+            <Section style={amountCard}>
+              <Text style={amountLabel}>Amount Received</Text>
+              <Text style={amountValue}>{formatCurrency(amountPaid)}</Text>
+              {isFullySettled ? (
+                <div style={paidBadge}>INVOICE FULLY SETTLED</div>
+              ) : (
+                <div style={partialBadge}>PARTIALLY PAID</div>
+              )}
+            </Section>
+
+            {/* Receipt Details Table */}
+            <Section style={detailsTable}>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Payment Reference:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}><Text style={detailValueMono}>{paymentReference}</Text></Column>
+              </Row>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Payment Date:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}><Text style={detailValue}>{paymentDate}</Text></Column>
+              </Row>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Payment Method:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}><Text style={detailValue}>{paymentMethod.replace('_', ' ')}</Text></Column>
+              </Row>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Applied To Invoice:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}><Text style={detailValueBold}>{invoiceNumber}</Text></Column>
+              </Row>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Invoice Grand Total:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}><Text style={detailValue}>{formatCurrency(invoiceGrandTotal)}</Text></Column>
+              </Row>
+              <Row style={detailRow}>
+                <Column style={{ width: '45%' }}><Text style={detailLabel}>Remaining Balance Due:</Text></Column>
+                <Column style={{ width: '55%', textAlign: 'right' }}>
+                  <Text style={isFullySettled ? settledText : remainingText}>
+                    {formatCurrency(remainingBalance)}
+                  </Text>
+                </Column>
+              </Row>
+            </Section>
+
+            <Section style={buttonContainer}>
+              <Button style={primaryButton} href={portalUrl}>
+                View Receipt & Subscription →
+              </Button>
+            </Section>
+
+            <Text style={noteText}>
+              A permanent record of this transaction is available in your Brightloop Customer Portal. Please retain this email for your tax and accounting records.
+            </Text>
+          </Section>
+
+          <Hr style={divider} />
+
+          <Section style={footer}>
+            <Text style={footerText}>
+              © {new Date().getFullYear()} Brightloop Software Inc. All rights reserved.
+            </Text>
+            <Text style={footerSubtext}>
+              Official payment settlement receipt generated by Brightloop Software Billing Engine.
+            </Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(amount || 0);
+}
+
+export default PaymentReceiptEmail;
+
+const main = {
+  backgroundColor: '#f6f9fc',
+  fontFamily:
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
+  padding: '40px 0',
+};
+
+const container = {
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)',
+  maxWidth: '580px',
+  margin: '0 auto',
+  overflow: 'hidden',
+  border: '1px solid #e2e8f0',
+};
+
+const header = {
+  backgroundColor: '#0f172a',
+  padding: '24px 36px',
+  textAlign: 'center' as const,
+};
+
+const brandBadge = {
+  display: 'inline-block',
+  width: '36px',
+  height: '36px',
+  lineHeight: '36px',
+  borderRadius: '8px',
+  background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+  color: '#ffffff',
+  fontWeight: '800' as const,
+  fontSize: '18px',
+  marginBottom: '6px',
+};
+
+const headerTitle = {
+  color: '#ffffff',
+  fontSize: '18px',
+  fontWeight: '700' as const,
+  margin: '4px 0 0',
+};
+
+const contentSection = {
+  padding: '36px 36px 28px',
+  textAlign: 'center' as const,
+};
+
+const successIconContainer = {
+  width: '56px',
+  height: '56px',
+  borderRadius: '50%',
+  backgroundColor: '#dcfce7',
+  margin: '0 auto 16px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const checkmarkIcon = {
+  fontSize: '28px',
+  color: '#16a34a',
+  lineHeight: '56px',
+  display: 'inline-block',
+};
+
+const receiptTitle = {
+  color: '#0f172a',
+  fontSize: '24px',
+  fontWeight: '800' as const,
+  margin: '0 0 8px',
+};
+
+const subTitle = {
+  color: '#475569',
+  fontSize: '15px',
+  margin: '0 0 24px',
+};
+
+const amountCard = {
+  backgroundColor: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  borderRadius: '10px',
+  padding: '20px',
+  margin: '0 0 24px',
+};
+
+const amountLabel = {
+  color: '#64748b',
+  fontSize: '12px',
+  fontWeight: '600' as const,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+  margin: '0 0 6px',
+};
+
+const amountValue = {
+  color: '#0f172a',
+  fontSize: '32px',
+  fontWeight: '800' as const,
+  margin: '0 0 8px',
+};
+
+const paidBadge = {
+  display: 'inline-block',
+  backgroundColor: '#dcfce7',
+  color: '#15803d',
+  fontSize: '11px',
+  fontWeight: '700' as const,
+  padding: '3px 12px',
+  borderRadius: '9999px',
+};
+
+const partialBadge = {
+  display: 'inline-block',
+  backgroundColor: '#fef3c7',
+  color: '#b45309',
+  fontSize: '11px',
+  fontWeight: '700' as const,
+  padding: '3px 12px',
+  borderRadius: '9999px',
+};
+
+const detailsTable = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: '8px',
+  padding: '16px 20px',
+  textAlign: 'left' as const,
+  marginBottom: '28px',
+};
+
+const detailRow = {
+  padding: '8px 0',
+  borderBottom: '1px solid #f8fafc',
+};
+
+const detailLabel = {
+  color: '#64748b',
+  fontSize: '13px',
+  margin: '0',
+};
+
+const detailValue = {
+  color: '#334155',
+  fontSize: '13px',
+  margin: '0',
+};
+
+const detailValueBold = {
+  color: '#0f172a',
+  fontSize: '13px',
+  fontWeight: '700' as const,
+  margin: '0',
+};
+
+const detailValueMono = {
+  color: '#0f172a',
+  fontFamily: 'monospace',
+  fontSize: '12px',
+  margin: '0',
+};
+
+const settledText = {
+  color: '#16a34a',
+  fontSize: '13px',
+  fontWeight: '700' as const,
+  margin: '0',
+};
+
+const remainingText = {
+  color: '#dc2626',
+  fontSize: '13px',
+  fontWeight: '700' as const,
+  margin: '0',
+};
+
+const buttonContainer = {
+  textAlign: 'center' as const,
+  margin: '20px 0 16px',
+};
+
+const primaryButton = {
+  backgroundColor: '#16a34a',
+  color: '#ffffff',
+  padding: '14px 28px',
+  borderRadius: '8px',
+  fontSize: '15px',
+  fontWeight: '600' as const,
+  textDecoration: 'none',
+  display: 'inline-block',
+  boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+};
+
+const noteText = {
+  color: '#64748b',
+  fontSize: '12px',
+  lineHeight: '1.5',
+  margin: '0',
+};
+
+const divider = {
+  borderColor: '#e2e8f0',
+  margin: '0',
+};
+
+const footer = {
+  backgroundColor: '#f8fafc',
+  padding: '24px 36px',
+  textAlign: 'center' as const,
+};
+
+const footerText = {
+  color: '#64748b',
+  fontSize: '13px',
+  margin: '0 0 6px',
+};
+
+const footerSubtext = {
+  color: '#94a3b8',
+  fontSize: '12px',
+  margin: '0',
+};

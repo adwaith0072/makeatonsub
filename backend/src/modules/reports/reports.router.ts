@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { authPlugin, requireStaffOrAdmin, type AuthUser } from '../../middleware/auth.ts';
 import { ReportsService } from './reports.service.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 
 export const reportsRouter = new Elysia({ prefix: '/reports' })
   .use(authPlugin)
@@ -254,5 +255,50 @@ export const reportsRouter = new Elysia({ prefix: '/reports' })
         ])),
         sortOrder: t.Optional(t.Union([t.Literal('asc'), t.Literal('desc')])),
       }),
+    }
+  )
+
+  // =========================================================================
+  // 5. POST /reports/email-status-report - Deliver Business Status Digest
+  // =========================================================================
+  .post(
+    '/email-status-report',
+    async ({ user, body, set }) => {
+      const guard = requireStaffOrAdmin(user as AuthUser);
+      if (guard) {
+        set.status = guard.status;
+        return guard.response;
+      }
+
+      const targetEmail = body?.targetEmail || (user as AuthUser).email;
+      const emailResult = await EmailService.sendAdminStatusReport(targetEmail);
+
+      if (emailResult.success) {
+        return {
+          message: `Executive business status report successfully dispatched to ${targetEmail}.`,
+          emailId: emailResult.id,
+        };
+      } else {
+        set.status = 502;
+        return {
+          error: {
+            code: 'EMAIL_SEND_FAILED',
+            message: emailResult.error || 'Failed to dispatch business status report email.',
+          },
+        };
+      }
+    },
+    {
+      detail: {
+        summary: 'Send Executive Business Status Report Email',
+        description:
+          'Triggers and delivers the executive business status report email via Resend to the requesting admin or specified email address.',
+        tags: ['Reports'],
+      },
+      body: t.Optional(
+        t.Object({
+          targetEmail: t.Optional(t.String({ format: 'email' })),
+        })
+      ),
     }
   );

@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../database/client.ts';
 import { authPlugin, ensureCustomerAccess, requireAdmin, requireStaffOrAdmin, type AuthUser } from '../../middleware/auth.ts';
 import { runBillingEngine } from './billing.service.ts';
+import { EmailService } from '../../services/email/email.service.ts';
 
 export const billingRouter = new Elysia()
   .use(authPlugin)
@@ -164,6 +165,118 @@ export const billingRouter = new Elysia()
     });
 
     return { message: 'Invoice cancelled.', invoice: updated };
+  })
+
+  // POST /invoices/:id/send - Send/Resend invoice email to customer (Admin / Staff)
+  .post('/invoices/:id/send', async ({ user, params, set }) => {
+    const guard = requireStaffOrAdmin(user as AuthUser);
+    if (guard) {
+      set.status = guard.status;
+      return guard.response;
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: params.id },
+      include: {
+        customer: true,
+        lines: true,
+      },
+    });
+
+    if (!invoice) {
+      set.status = 404;
+      return { error: { code: 'NOT_FOUND', message: 'Invoice not found.' } };
+    }
+
+    const emailResult = await EmailService.sendInvoiceEmail(
+      invoice,
+      invoice.lines,
+      invoice.customer
+    );
+
+    if (emailResult.success) {
+      return {
+        message: `Invoice ${invoice.number} successfully emailed to ${invoice.customerEmail || invoice.customer?.email}.`,
+        emailId: emailResult.id,
+      };
+    } else {
+      set.status = 502;
+      return {
+        error: {
+          code: 'EMAIL_SEND_FAILED',
+          message: emailResult.error || 'Failed to deliver invoice email.',
+        },
+      };
+    }
+  })
+
+  // POST /invoices/:id/remind - Send overdue reminder for an invoice (Admin / Staff)
+  .post('/invoices/:id/remind', async ({ user, params, set }) => {
+    const guard = requireStaffOrAdmin(user as AuthUser);
+    if (guard) {
+      set.status = guard.status;
+      return guard.response;
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: params.id },
+      include: { customer: true },
+    });
+
+    if (!invoice) {
+      set.status = 404;
+      return { error: { code: 'NOT_FOUND', message: 'Invoice not found.' } };
+    }
+
+    if (invoice.status === 'PAID' || invoice.status === 'CANCELLED') {
+      set.status = 400;
+      return {
+        error: {
+          code: 'INVALID_STATUS',
+          message: `Cannot send overdue reminder for ${invoice.status} invoice.`,
+        },
+      };
+    }
+
+    const dueTime = new Date(invoice.dueDate).getTime();
+    const daysOverdue = Math.max(1, Math.floor((Date.now() - dueTime) / 86400000));
+
+    const emailResult = await EmailService.sendOverdueReminderEmail(
+      invoice,
+      invoice.customer,
+      daysOverdue
+    );
+
+    if (emailResult.success) {
+      return {
+        message: `Overdue reminder for invoice ${invoice.number} sent successfully.`,
+        daysOverdue,
+        emailId: emailResult.id,
+      };
+    } else {
+      set.status = 502;
+      return {
+        error: {
+          code: 'EMAIL_SEND_FAILED',
+          message: emailResult.error || 'Failed to deliver overdue reminder.',
+        },
+      };
+    }
+  })
+
+  // POST /invoices/reminders/overdue - Batch dispatch overdue reminders (Admin / Staff)
+  .post('/invoices/reminders/overdue', async ({ user, set }) => {
+    const guard = requireStaffOrAdmin(user as AuthUser);
+    if (guard) {
+      set.status = guard.status;
+      return guard.response;
+    }
+
+    const result = await EmailService.dispatchBatchOverdueReminders();
+    return {
+      message: 'Batch overdue reminder run completed.',
+      result,
+    };
   })
 
   // ==================== TAXES ====================
