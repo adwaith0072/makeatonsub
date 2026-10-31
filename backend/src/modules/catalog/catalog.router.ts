@@ -318,6 +318,54 @@ export const catalogRouter = new Elysia()
     return { plan };
   })
 
+  // PATCH /plans/:id (ADMIN ONLY)
+  .patch(
+    '/plans/:id',
+    async ({ user, params, body, set }) => {
+      const guard = requireAdmin(user as AuthUser);
+      if (guard) {
+        set.status = guard.status;
+        return guard.response;
+      }
+
+      const updated = await prisma.plan.update({
+        where: { id: params.id },
+        data: {
+          name: body.name,
+          description: body.description,
+          price: body.price,
+          minQuantity: body.minQuantity,
+          availableFrom: body.availableFrom ? new Date(body.availableFrom) : undefined,
+          availableTo: body.availableTo ? new Date(body.availableTo) : undefined,
+          autoClose: body.autoClose,
+          allowEarlyClose: body.allowEarlyClose,
+          allowPause: body.allowPause,
+          allowRenewal: body.allowRenewal,
+          isActive: body.isActive,
+        },
+      });
+
+      return { message: 'Plan updated successfully.', plan: updated };
+    },
+    {
+      body: t.Partial(
+        t.Object({
+          name: t.String({ minLength: 1 }),
+          description: t.String(),
+          price: t.Number({ minimum: 0 }),
+          minQuantity: t.Number({ minimum: 1 }),
+          availableFrom: t.String(),
+          availableTo: t.String(),
+          autoClose: t.Boolean(),
+          allowEarlyClose: t.Boolean(),
+          allowPause: t.Boolean(),
+          allowRenewal: t.Boolean(),
+          isActive: t.Boolean(),
+        })
+      ),
+    }
+  )
+
   // ==================== QUOTATION TEMPLATES ====================
 
   // GET /quotation-templates

@@ -24,6 +24,82 @@ export const authRouter = new Elysia({ prefix: '/auth' })
   .use(securityPlugin)
   .use(authPlugin)
 
+  // POST /auth/bootstrap-admin - Initial system administrator setup (allowed only if 0 admins exist)
+  .post(
+    '/bootstrap-admin',
+    async ({ body, set, jwt, deviceFingerprint }) => {
+      const existingAdmins = await prisma.user.count({
+        where: { role: 'ADMIN' },
+      });
+
+      if (existingAdmins > 0) {
+        set.status = 403;
+        return {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'An administrator account already exists. Bootstrap setup is disabled.',
+          },
+        };
+      }
+
+      const { email, password, name } = body;
+      const normalizedEmail = email.trim().toLowerCase();
+
+      const pwdError = validatePassword(password);
+      if (pwdError) {
+        set.status = 400;
+        return {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: pwdError,
+            fields: { password: pwdError },
+          },
+        };
+      }
+
+      const passwordHash = await Bun.password.hash(password);
+
+      const adminUser = await prisma.user.upsert({
+        where: { email: normalizedEmail },
+        update: { role: 'ADMIN', passwordHash },
+        create: {
+          name,
+          email: normalizedEmail,
+          passwordHash,
+          role: 'ADMIN',
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+
+      const token = await jwt.sign({
+        id: adminUser.id,
+        email: adminUser.email,
+        role: adminUser.role,
+        fp: deviceFingerprint,
+      });
+
+      set.status = 201;
+      return {
+        message: 'Master administrator account initialized successfully.',
+        user: adminUser,
+        token,
+      };
+    },
+    {
+      body: t.Object({
+        name: t.String({ minLength: 1 }),
+        email: t.String({ format: 'email' }),
+        password: t.String(),
+      }),
+    }
+  )
+
   // POST /auth/signup
   .post(
     '/signup',
